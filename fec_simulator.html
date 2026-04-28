@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Fe-C平衡状態図 究極ガイド & シミュレーター</title>
+    <style>
+        :root {
+            --primary: #1a237e; --secondary: #c62828; --bg: #f8f9fa; --panel: #ffffff;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: var(--bg); color: #333; margin: 0; padding: 20px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .header { text-align: center; max-width: 900px; }
+        h1 { color: var(--primary); margin-bottom: 5px; }
+        .intro { color: #666; font-size: 0.9em; margin-bottom: 20px; }
+
+        .main-container {
+            display: flex; gap: 20px; background: var(--panel); padding: 25px;
+            border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            max-width: 1100px; width: 100%; box-sizing: border-box;
+        }
+
+        /* 左側：操作・状態図 */
+        .left-col { flex: 1.2; display: flex; flex-direction: column; gap: 20px; }
+        .controls {
+            background: #e3f2fd; padding: 15px; border-radius: 10px;
+            display: flex; flex-wrap: wrap; gap: 15px; align-items: center; border: 1px solid #bbdefb;
+        }
+        .control-item { display: flex; align-items: center; gap: 8px; }
+        input[type="range"] { width: 180px; }
+        .val-badge { background: var(--secondary); color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
+
+        /* 右側：顕微鏡・用語解説 */
+        .right-col { flex: 0.8; display: flex; flex-direction: column; gap: 20px; border-left: 2px dashed #eee; padding-left: 20px; }
+        
+        .micro-view { text-align: center; }
+        .micro-circle {
+            width: 200px; height: 200px; border-radius: 50%; border: 6px solid #455a64;
+            margin: 0 auto 15px; position: relative; overflow: hidden; background: #eee;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.3);
+        }
+        canvas#micro-canvas { position: absolute; top:0; left:0; }
+
+        /* 解説パネル */
+        .info-panel { background: #fffde7; border: 1px solid #fff59d; border-radius: 8px; padding: 15px; }
+        .phase-title { font-size: 1.2em; font-weight: bold; color: var(--secondary); margin-bottom: 5px; }
+        .explanation { font-size: 0.9em; line-height: 1.6; }
+        
+        /* 初心者向け用語辞典 */
+        .glossary {
+            background: #f1f8e9; border: 1px solid #c5e1a5; border-radius: 8px; padding: 12px; font-size: 0.85em;
+        }
+        .glossary h4 { margin: 0 0 8px 0; color: #33691e; display: flex; align-items: center; gap: 5px; }
+        .term { font-weight: bold; color: #2e7d32; border-bottom: 1px dotted #2e7d32; cursor: help; }
+
+        canvas#diagram-canvas { border: 1px solid #ddd; background: white; border-radius: 5px; cursor: crosshair; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>鉄の「変身」シミュレーター</h1>
+    <p class="intro">温度と炭素量で、鉄の内部（組織）がどう変わるか見てみましょう。赤い丸を動かして「境界線」を越えてみてください。</p>
+</div>
+
+<div class="main-container">
+    <div class="left-col">
+        <div class="controls">
+            <div class="control-item">
+                <label><b>炭素量:</b></label>
+                <select id="carbon-select">
+                    <option value="0.4">0.4%C (亜共析鋼: 建築材料など)</option>
+                    <option value="0.8" selected>0.8%C (共析鋼: 工具など)</option>
+                    <option value="1.2">1.2%C (過共析鋼: 非常に硬い刃物など)</option>
+                </select>
+            </div>
+            <div class="control-item">
+                <label><b>温度:</b></label>
+                <input type="range" id="temp-slider" min="600" max="1100" value="1100">
+                <span id="temp-display" class="val-badge">1100℃</span>
+            </div>
+        </div>
+        <canvas id="diagram-canvas" width="550" height="400"></canvas>
+    </div>
+
+    <div class="right-col">
+        <div class="micro-view">
+            <h4>顕微鏡で見える組織のイメージ</h4>
+            <div class="micro-circle">
+                <canvas id="micro-canvas" width="200" height="200"></canvas>
+            </div>
+        </div>
+
+        <div class="info-panel">
+            <div id="phase-name" class="phase-title">オーステナイト</div>
+            <div id="phase-desc" class="explanation">解説文がここに入ります。</div>
+        </div>
+
+        <div class="glossary">
+            <h4>💡 初心者向け・言葉の補足</h4>
+            <div>• <span class="term" title="形や構造がガラッと変わること">変態 (へんたい)</span>：鉄の原子の並び方が変わること。</div>
+            <div>• <span class="term" title="溶けきれなくなった成分が固体として出てくること">析出 (せきしゅつ)</span>：溶けていた炭素が、冷えて外に出てくること。</div>
+            <div>• <span class="term" title="結晶と結晶のさかい目">粒界 (りゅうかい)</span>：組織の境界。変化はここから始まります。</div>
+            <div>• <span class="term" title="あらかじめ、早く出てきたもの">初析 (しょせき)</span>：メインの変化の前に、先行して出てくる組織。</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const A1_T = 727;
+    const EUT_C = 0.77;
+    
+    const carbonSelect = document.getElementById('carbon-select');
+    const tempSlider = document.getElementById('temp-slider');
+    const tempDisplay = document.getElementById('temp-display');
+    const phaseNameEl = document.getElementById('phase-name');
+    const phaseDescEl = document.getElementById('phase-desc');
+    const dCanvas = document.getElementById('diagram-canvas');
+    const dCtx = dCanvas.getContext('2d');
+    const mCanvas = document.getElementById('micro-canvas');
+    const mCtx = mCanvas.getContext('2d');
+
+    function getA3(c) { return 910 - ((910 - 727) / EUT_C) * c; }
+    function getAcm(c) { return 727 + ((1147 - 727) / (2.14 - 0.77)) * (c - 0.77); }
+
+    // --- 状態図の描画 ---
+    function drawDiagram(curC, curT) {
+        const w = dCanvas.width, h = dCanvas.height;
+        dCtx.clearRect(0,0,w,h);
+        const getX = c => (c / 1.6) * w;
+        const getY = t => h - ((t - 600) / 500) * h;
+
+        // 背景
+        dCtx.fillStyle = "#fcfcfc"; dCtx.fillRect(0,0,w,h);
+
+        // A1線
+        dCtx.beginPath(); dCtx.moveTo(0, getY(A1_T)); dCtx.lineTo(w, getY(A1_T));
+        dCtx.strokeStyle = "#333"; dCtx.setLineDash([]); dCtx.stroke();
+        dCtx.fillStyle = "#333"; dCtx.fillText("A1線 (727℃): 共析変態点", 10, getY(A1_T) - 5);
+
+        // A3線
+        dCtx.beginPath();
+        for(let c=0; c<=EUT_C; c+=0.01) dCtx.lineTo(getX(c), getY(getA3(c)));
+        dCtx.strokeStyle = "#1976d2"; dCtx.lineWidth = 2; dCtx.stroke();
+        dCtx.fillStyle = "#1976d2"; dCtx.fillText("A3線: フェライトが析出開始", getX(0.1), getY(getA3(0.1)) - 10);
+
+        // Acm線
+        dCtx.beginPath();
+        for(let c=EUT_C; c<=1.6; c+=0.01) dCtx.lineTo(getX(c), getY(getAcm(c)));
+        dCtx.strokeStyle = "#2e7d32"; dCtx.stroke();
+        dCtx.fillStyle = "#2e7d32"; dCtx.fillText("Acm線: セメンタイトが析出開始", getX(1.1), getY(getAcm(1.1)) - 10);
+
+        // 現在値
+        dCtx.beginPath(); dCtx.setLineDash([5,5]); dCtx.moveTo(getX(curC), 0); dCtx.lineTo(getX(curC), h);
+        dCtx.strokeStyle = "#aaa"; dCtx.stroke(); dCtx.setLineDash([]);
+        
+        dCtx.beginPath(); dCtx.arc(getX(curC), getY(curT), 7, 0, 7);
+        dCtx.fillStyle = "red"; dCtx.fill(); dCtx.strokeStyle="white"; dCtx.stroke();
+    }
+
+    // --- 顕微鏡イメージの描画 ---
+    let pearlitePattern;
+    function drawMicro(state, prog) {
+        if(!pearlitePattern) {
+            const p = document.createElement('canvas'); p.width=10; p.height=10;
+            const pc = p.getContext('2d'); pc.strokeStyle="#333";
+            pc.beginPath(); pc.moveTo(0,10); pc.lineTo(10,0); pc.stroke();
+            pearlitePattern = mCtx.createPattern(p, 'repeat');
+        }
+        mCtx.clearRect(0,0,200,200);
+        mCtx.fillStyle = (state === 'austenite') ? '#cfd8dc' : pearlitePattern;
+        mCtx.fillRect(0,0,200,200);
+
+        // 結晶粒界
+        mCtx.strokeStyle = (state.includes('cementite')) ? '#000' : '#888';
+        mCtx.lineWidth = (state.includes('cementite')) ? 3 + prog*4 : 1;
+        const drawGrid = () => {
+            mCtx.beginPath();
+            for(let i=0; i<3; i++) { mCtx.moveTo(0, 70*i+30); mCtx.lineTo(200, 60*i+50); mCtx.moveTo(70*i+40, 0); mCtx.lineTo(60*i+60, 200); }
+            mCtx.stroke();
+        }
+        drawGrid();
+
+        // フェライトの塊
+        if(state.includes('ferrite')) {
+            mCtx.fillStyle = "white"; mCtx.strokeStyle = "#555"; mCtx.lineWidth = 1;
+            const pts = [{x:70,y:70}, {x:140,y:40}, {x:40,y:140}, {x:120,y:150}];
+            pts.forEach(p => {
+                mCtx.beginPath(); 
+                let r = (state === 'ferrite_pearlite') ? 25 : 5 + prog*20;
+                mCtx.arc(p.x, p.y, r, 0, 7); mCtx.fill(); mCtx.stroke();
+            });
+        }
+    }
+
+    function update() {
+        const c = parseFloat(carbonSelect.value);
+        const t = parseInt(tempSlider.value);
+        tempDisplay.innerText = t + "℃";
+        drawDiagram(c, t);
+
+        let name, desc, state, prog = 0;
+        
+        if (c === 0.4) { // 亜共析鋼
+            const a3 = getA3(c);
+            if (t > a3) {
+                state = 'austenite'; name = "オーステナイト (γ相)";
+                desc = "高温で炭素が鉄の中にきれいに溶け込んでいる状態です。";
+            } else if (t > A1_T) {
+                prog = (a3 - t) / (a3 - A1_T); state = 'ferrite';
+                name = "A3線：フェライト析出中";
+                desc = `<b>【A3線】</b>を越えました。温度が下がり、溶けきれなくなった鉄が白い塊<b>「フェライト」</b>として粒のさかい目から現れ始めます。`;
+            } else {
+                state = 'ferrite_pearlite'; name = "A1線通過：フェライト＋パーライト";
+                desc = `<b>【A1線 (727℃)】</b>を通過。残っていた組織がすべてシマ模様の<b>「パーライト」</b>に変わりました。これを「共析反応」と呼びます。`;
+            }
+        } else if (c === 0.8) { // 共析鋼
+            if (t > A1_T) {
+                state = 'austenite'; name = "オーステナイト (γ相)";
+                desc = "炭素量0.77%付近は、途中の変化がなく、A1線で一気に変身するのが特徴です。";
+            } else {
+                state = 'pearlite'; name = "A1線：パーライト100%";
+                desc = `<b>【A1線】</b>で、一気にすべての組織がシマ模様のパーライトになります。最もきれいに混ざった状態です。`;
+            }
+        } else { // 過共析鋼
+            const acm = getAcm(c);
+            if (t > acm) {
+                state = 'austenite'; name = "オーステナイト (γ相)";
+                desc = "炭素が非常に多く溶け込んでいます。";
+            } else if (t > A1_T) {
+                prog = (acm - t) / (acm - A1_T); state = 'cementite';
+                name = "Acm線：セメンタイト析出中";
+                desc = `<b>【Acm線】</b>を越えました。多すぎる炭素が、非常に硬い<b>「セメンタイト」</b>として粒の周りを囲むように出てきます。`;
+            } else {
+                state = 'cementite_pearlite'; name = "A1線通過：パーライト＋セメンタイト";
+                desc = `<b>【A1線】</b>を通過。中身がシマ模様に変わりました。外側を硬いセメンタイトが囲んでいるため、非常に硬い鉄になります。`;
+            }
+        }
+
+        phaseNameEl.innerHTML = name;
+        phaseDescEl.innerHTML = desc;
+        drawMicro(state, prog);
+    }
+
+    tempSlider.oninput = update;
+    carbonSelect.onchange = update;
+    update();
+</script>
+
+</body>
+</html>
